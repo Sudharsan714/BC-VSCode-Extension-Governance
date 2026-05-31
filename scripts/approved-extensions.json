@@ -1,0 +1,334 @@
+{
+  "_comment": "Approved VS Code extensions for Business Central (AL) development.",
+  "_lastReviewed": "2026-05-27",
+  "_reviewedBy": "security-team",
+  "_versionNote": "All versions are auto-resolved at runtime from the VS Marketplace. needsVersionReview:true on all entries ensures the latest version is always fetched when the pipeline runs.",
+  "extensions": [
+
+    {
+      "_group": "── Core AL Language ──────────────────────────────────────"
+    },
+    {
+      "name": "ms-dynamics-smb.al",
+      "version": "0.0.0",
+      "description": "AL Language extension for Microsoft Dynamics 365 Business Central - IntelliSense, debugger, compiler",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "Microsoft",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/ms-dynamics-smb/vsextensions/al/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "waldo.crs-al-language-extension",
+      "version": "0.0.0",
+      "description": "CRS AL Language Extension - file/object naming rules, renaming, snippets, workspace commands",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "waldo (Eric Wauters)",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/waldo/vsextensions/crs-al-language-extension/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "andrzejzwierzchowski.al-code-outline",
+      "version": "0.0.0",
+      "description": "AZ AL Dev Tools / AL Code Outline - object/symbol tree, code generators, wizard-style creators",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "Andrzej Zwierzchowski",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/andrzejzwierzchowski/vsextensions/al-code-outline/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "davidfeldhoff.al-codeactions",
+      "version": "0.0.0",
+      "description": "AL CodeActions - quick-fix actions: extract variable, sort properties, fix usings",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "David Feldhoff",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/davidfeldhoff/vsextensions/al-codeactions/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "bartpermentier.al-toolbox",
+      "version": "0.0.0",
+      "description": "AL Toolbox - region folding, related-table commands, region snippets for AL",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "Bart Permentier",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/bartpermentier/vsextensions/al-toolbox/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "rasmus.al-var-helper",
+      "version": "0.0.0",
+      "description": "AL Variable Helper - smart variable name suggestions following BC naming conventions",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "Rasmus",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/rasmus/vsextensions/al-var-helper/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "wbrakowski.al-navigator",
+      "version": "0.0.0",
+      "description": "AL Navigator - navigate to next/prev variable, go-to-related object shortcut",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "Wbrakowski",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/wbrakowski/vsextensions/al-navigator/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "martonsagi.al-object-designer",
+      "version": "0.0.0",
+      "description": "AL Object Designer - visual table/page designer with drag-and-drop fields",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "Marton Sagi",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/martonsagi/vsextensions/al-object-designer/REPLACE_VERSION/vspackage"
+    },
+
+    {
+      "_group": "── Code Quality & Linting ────────────────────────────────"
+    },
+    {
+      "name": "StefanMaron.businesscentral-lintercop",
+      "version": "0.0.0",
+      "description": "BusinessCentral.LinterCop - open-source rule set on top of AL compiler; catches BC-specific anti-patterns",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "Stefan Maron",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/StefanMaron/vsextensions/businesscentral-lintercop/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "365businessdevelopment.bdev-al-xml-doc",
+      "version": "0.0.0",
+      "description": "AL XML Documentation - generates XML doc comments; renders hover docs in IntelliSense",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "365 Business Development",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/365businessdevelopment/vsextensions/bdev-al-xml-doc/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "usernamehw.errorlens",
+      "version": "0.0.0",
+      "description": "Error Lens - shows AL compiler errors and LinterCop warnings inline on the code line",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "Alexander (usernamehw)",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/usernamehw/vsextensions/errorlens/REPLACE_VERSION/vspackage"
+    },
+
+    {
+      "_group": "── Object ID & Range Management ──────────────────────────"
+    },
+    {
+      "name": "vjeko.vjeko-al-objid",
+      "version": "0.0.0",
+      "description": "AL Object ID Ninja - central object ID assignment for teams; prevents ID conflicts in multi-developer repos",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "Vjeko Babic",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/vjeko/vsextensions/vjeko-al-objid/REPLACE_VERSION/vspackage"
+    },
+
+    {
+      "_group": "── Testing ───────────────────────────────────────────────"
+    },
+    {
+      "name": "jamespearson.al-test-runner",
+      "version": "0.0.0",
+      "description": "AL Test Runner - run and debug individual AL test codeunits and methods from within VS Code",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "James Pearson",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/jamespearson/vsextensions/al-test-runner/REPLACE_VERSION/vspackage"
+    },
+
+    {
+      "_group": "── Translations & Localisation ───────────────────────────"
+    },
+    {
+      "name": "rvanbekkum.xliff-sync",
+      "version": "0.0.0",
+      "description": "XLIFF Sync - keeps .xlf translation files in sync with g.xlf; detects missing translations",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "Rob van Bekkum",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/rvanbekkum/vsextensions/xliff-sync/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "nabsolutions.nab-al-tools",
+      "version": "0.0.0",
+      "description": "NAB AL Tools - advanced XLIFF management, translation suggestions, export to external tools",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "NAB Solutions AB",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/nabsolutions/vsextensions/nab-al-tools/REPLACE_VERSION/vspackage"
+    },
+
+    {
+      "_group": "── Git & DevOps ──────────────────────────────────────────"
+    },
+    {
+      "name": "eamodio.gitlens",
+      "version": "0.0.0",
+      "description": "GitLens - inline blame, rich history, branch/stash visualiser; essential for multi-developer BC repos",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "GitKraken",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/eamodio/vsextensions/gitlens/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "donjayamanne.githistory",
+      "version": "0.0.0",
+      "description": "Git History - visual log, file and line history viewer",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "Don Jayamanne",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/donjayamanne/vsextensions/githistory/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "ms-vscode.powershell",
+      "version": "0.0.0",
+      "description": "PowerShell - essential for BCContainerHelper, pipeline scripts, and Docker management",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "Microsoft",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/ms-vscode/vsextensions/powershell/REPLACE_VERSION/vspackage"
+    },
+
+    {
+      "_group": "── Docker & API Tools ────────────────────────────────────"
+    },
+    {
+      "name": "ms-azuretools.vscode-docker",
+      "version": "0.0.0",
+      "description": "Docker - manage BC Docker containers (images, logs, shell) from VS Code sidebar",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "Microsoft",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/ms-azuretools/vsextensions/vscode-docker/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "humao.rest-client",
+      "version": "0.0.0",
+      "description": "REST Client - test BC OData/API endpoints directly from .http files in VS Code",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "Huachao Mao",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/humao/vsextensions/rest-client/REPLACE_VERSION/vspackage"
+    },
+
+    {
+      "_group": "── Editor Productivity ───────────────────────────────────"
+    },
+    {
+      "name": "Gruntfuggly.todo-tree",
+      "version": "0.0.0",
+      "description": "TODO Tree - aggregates all TODO/FIXME comments in a sidebar tree",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "Gruntfuggly",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/Gruntfuggly/vsextensions/todo-tree/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "wayou.vscode-todo-highlight",
+      "version": "0.0.0",
+      "description": "TODO Highlight - colour-highlights TODO/FIXME inline in editor",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "wayou",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/wayou/vsextensions/vscode-todo-highlight/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "nwallace.createguid",
+      "version": "0.0.0",
+      "description": "Create GUID - insert a new GUID anywhere; needed for app.json IDs and permissions",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "nwallace",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/nwallace/vsextensions/createguid/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "ryu1kn.partial-diff",
+      "version": "0.0.0",
+      "description": "Partial Diff - diff any two selected text blocks; handy for comparing AL objects",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "Ryuichi Inagaki",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/ryu1kn/vsextensions/partial-diff/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "chunsen.bracket-select",
+      "version": "0.0.0",
+      "description": "Bracket Select - select content inside brackets with a single shortcut",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "Chunsen Wu",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/chunsen/vsextensions/bracket-select/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "vscode-icons-team.vscode-icons",
+      "version": "0.0.0",
+      "description": "vscode-icons - file icon theme with icons for .al, .xlf, .app, Docker files",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "VSCode Icons Team",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/vscode-icons-team/vsextensions/vscode-icons/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "nikitakunevich.snippet-creator",
+      "version": "0.0.0",
+      "description": "snippet-creator - convert any selected AL code into a reusable snippet",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "Nikita Kunevich",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/nikitakunevich/vsextensions/snippet-creator/REPLACE_VERSION/vspackage"
+    },
+
+    {
+      "_group": "── AI-Assisted Development ───────────────────────────────"
+    },
+    {
+      "name": "GitHub.copilot",
+      "version": "0.0.0",
+      "description": "GitHub Copilot - inline AL code completions (requires Copilot subscription)",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "GitHub",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/GitHub/vsextensions/copilot/REPLACE_VERSION/vspackage"
+    },
+    {
+      "name": "GitHub.copilot-chat",
+      "version": "0.0.0",
+      "description": "GitHub Copilot Chat - ask questions about AL code, generate test stubs (requires Copilot subscription)",
+      "approvedBy": "security-team",
+      "approvalDate": "2026-05-27",
+      "publisher": "GitHub",
+      "needsVersionReview": true,
+      "vsixUrl": "https://marketplace.visualstudio.com/_apis/public/gallery/publishers/GitHub/vsextensions/copilot-chat/REPLACE_VERSION/vspackage"
+    }
+  ]
+}

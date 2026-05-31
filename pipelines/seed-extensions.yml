@@ -1,0 +1,118 @@
+# ============================================================
+# seed-extensions.yml
+# Azure DevOps Pipeline: Bulk-seed all approved VS Code
+# extensions into the Azure Artifacts feed.
+# USAGE: Trigger manually from Azure DevOps Pipelines UI. (v2)
+# ============================================================
+
+trigger: none
+
+parameters:
+  - name: feedName
+    displayName: "Azure Artifacts Feed Name"
+    type: string
+    default: "approved-vscode-extensions"
+
+  - name: skipAutoResolve
+    displayName: "Skip auto-resolving versions from Marketplace? (use only if Marketplace is unreachable)"
+    type: boolean
+    default: false
+
+variables:
+  feedName: ${{ parameters.feedName }}
+
+pool:
+  vmImage: "windows-latest"
+
+steps:
+
+  # -- Step 1: Confirm tools are available -------------------
+  - powershell: |
+      Write-Host "==> Checking pre-installed tools"
+      $azOut = az version 2>&1
+      if ($LASTEXITCODE -ne 0) {
+        Write-Host "##vso[task.logissue type=error]Azure CLI not found on agent."
+        exit 1
+      }
+      Write-Host "    [OK] Azure CLI found"
+      Write-Host "    [OK] PowerShell $($PSVersionTable.PSVersion.ToString())"
+
+      Write-Host "==> Installing azure-devops CLI extension (shared for all steps)"
+      az extension add    --name azure-devops --only-show-errors
+      az extension update --name azure-devops --only-show-errors
+      Write-Host "    [OK] azure-devops extension ready"
+    displayName: "Verify tools and install az extension"
+    env:
+      AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+
+  # -- Step 2: Unblock the script ----------------------------
+  - powershell: |
+      $scriptPath = "$(Build.SourcesDirectory)\scripts\Publish-ApprovedExtensions.ps1"
+      if (-not (Test-Path $scriptPath)) {
+        Write-Host "##vso[task.logissue type=error]Script not found at: $scriptPath"
+        exit 1
+      }
+      Unblock-File -Path $scriptPath
+      Write-Host "    [OK] Script unblocked: $scriptPath"
+    displayName: "Unblock PowerShell script"
+
+  # -- Step 3: Run the bulk-seed script ----------------------
+  - powershell: |
+      $scriptPath = "$(Build.SourcesDirectory)\scripts\Publish-ApprovedExtensions.ps1"
+      $skip = [System.Convert]::ToBoolean("${{ parameters.skipAutoResolve }}")
+
+      Write-Host "==> Starting bulk seed"
+      Write-Host "    Organization : $(System.CollectionUri)"
+      Write-Host "    Project      : $(System.TeamProject)"
+      Write-Host "    Feed         : $(feedName)"
+      Write-Host "    Skip resolve : $skip"
+      Write-Host ""
+
+      if ($skip) {
+        & $scriptPath `
+          -Organization "$(System.CollectionUri)" `
+          -Project      "$(System.TeamProject)" `
+          -Feed         "$(feedName)" `
+          -SkipAutoResolve
+      } else {
+        & $scriptPath `
+          -Organization "$(System.CollectionUri)" `
+          -Project      "$(System.TeamProject)" `
+          -Feed         "$(feedName)"
+      }
+    displayName: "Run Publish-ApprovedExtensions.ps1"
+    env:
+      AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)
+
+  # -- Step 4: Print feed summary ----------------------------
+  # Uses Azure DevOps REST API directly - no az CLI extension needed.
+  - powershell: |
+      Write-Host "==> Feed contents after seeding"
+      $ErrorActionPreference = "Continue"
+
+      $org     = "$(System.CollectionUri)".TrimEnd('/')
+      $project = "$(System.TeamProject)"
+      $feed    = "$(feedName)"
+      $pat     = $env:SYSTEM_ACCESSTOKEN
+      $encoded = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$pat"))
+      $headers = @{ Authorization = "Basic $encoded" }
+
+      $url = "$org/$project/_apis/packaging/feeds/$feed/packages?protocolType=UPack&api-version=7.1-preview.1"
+
+      try {
+        $response = Invoke-RestMethod -Uri $url -Headers $headers -Method GET
+        $pkgs = $response.value
+        Write-Host "    [OK] $($pkgs.Count) package(s) in feed '$feed'"
+        Write-Host ""
+        $pkgs | ForEach-Object {
+          $ver = if ($_.versions) { $_.versions[0].version } else { "unknown" }
+          Write-Host ("    {0,-50} {1}" -f $_.name, $ver)
+        }
+      } catch {
+        Write-Host "    [WARN] Could not retrieve feed summary: $_"
+        Write-Host "    This does not affect the publish result above."
+      }
+    displayName: "Print feed summary"
+    continueOnError: true
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)

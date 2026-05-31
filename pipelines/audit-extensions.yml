@@ -1,0 +1,361 @@
+# ============================================================
+# audit-extensions.yml
+# Azure DevOps Pipeline - Weekly audit of the approved VS Code extension feed
+# ============================================================
+
+trigger: none
+
+schedules:
+  - cron: "0 8 * * 1"
+    displayName: "Weekly extension audit - Monday 08:00 UTC"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  feedName: "approved-vscode-extensions"
+
+  # IMPORTANT:
+  # Replace this with your Seed pipeline ID.
+  # Open the Seed pipeline in Azure DevOps and check the URL for definitionId=<number>.
+  seedPipelineId: "5"
+
+pool:
+  vmImage: "windows-latest"
+
+jobs:
+  - job: AuditJob
+    displayName: "Audit Feed vs VS Marketplace"
+    timeoutInMinutes: 30
+
+    steps:
+      - checkout: self
+        persistCredentials: true
+
+      - pwsh: |
+          $jsonPath = "$(Build.SourcesDirectory)\scripts\approved-extensions.json"
+          if (-not (Test-Path $jsonPath)) {
+            Write-Host "##vso[task.logissue type=error]approved-extensions.json not found at: $jsonPath"
+            exit 1
+          }
+
+          $data = Get-Content $jsonPath -Raw | ConvertFrom-Json
+          $count = @($data.extensions | Where-Object { $_.PSObject.Properties.Name -contains "name" }).Count
+          Write-Host "    [OK] approved-extensions.json found - $count extension entries"
+        displayName: "Verify approved-extensions.json exists"
+
+      - pwsh: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = "Continue"
+
+          function Write-AuditFailureReport {
+            param(
+              [string]$ReportPath,
+              [string]$Feed,
+              [string]$ErrorMessage
+            )
+
+            $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm"
+            $md = [System.Text.StringBuilder]::new()
+            $null = $md.AppendLine("# VS Code Extension Feed - Audit Report")
+            $null = $md.AppendLine("")
+            $null = $md.AppendLine("| Field | Value |")
+            $null = $md.AppendLine("|---|---|")
+            $null = $md.AppendLine("| **Generated** | $timestamp UTC |")
+            $null = $md.AppendLine("| **Pipeline** | $(Build.BuildNumber) |")
+            $null = $md.AppendLine("| **Feed** | $Feed |")
+            $null = $md.AppendLine("| **Status** | Failed before comparison |")
+            $null = $md.AppendLine("| **Error** | $ErrorMessage |")
+            $null = $md.AppendLine("")
+            $null = $md.AppendLine("## Fix Applied")
+            $null = $md.AppendLine("")
+            $null = $md.AppendLine("The Azure Artifacts packaging API must use feeds.dev.azure.com, not dev.azure.com.")
+            $md.ToString() | Set-Content -Path $ReportPath -Encoding UTF8
+          }
+
+          $orgFull = "$(System.CollectionUri)".TrimEnd('/')
+          $orgName = $orgFull.Split('/')[-1]
+          $project = "$(System.TeamProject)"
+          $feed = "$(feedName)"
+          $pat = $env:SYSTEM_ACCESSTOKEN
+          $reportPath = "$(Build.SourcesDirectory)\audit-report.md"
+
+          if ([string]::IsNullOrWhiteSpace($pat)) {
+            $msg = "System.AccessToken is empty. Enable 'Allow scripts to access OAuth token' or check pipeline permissions."
+            Write-Host "##vso[task.logissue type=error]$msg"
+            Write-AuditFailureReport -ReportPath $reportPath -Feed $feed -ErrorMessage $msg
+            exit 1
+          }
+
+          $b64 = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(":$pat"))
+          $restHdrs = @{ Authorization = "Basic $b64"; Accept = "application/json" }
+
+          $jsonPath = "$(Build.SourcesDirectory)\scripts\approved-extensions.json"
+          $data = Get-Content $jsonPath -Raw | ConvertFrom-Json
+          $extensions = @($data.extensions | Where-Object { $_.PSObject.Properties.Name -contains "name" })
+          Write-Host "    Extensions in approved list: $($extensions.Count)"
+
+          $encodedProject = [Uri]::EscapeDataString($project)
+
+          # IMPORTANT: Packaging feed API must use feeds.dev.azure.com.
+          # Using $(System.CollectionUri) gives https://dev.azure.com/<org>, which returns 404 for this API.
+          $feedsBase = "https://feeds.dev.azure.com/$orgName"
+          $pkgsUrl = "$feedsBase/$encodedProject/_apis/packaging/feeds/$feed/packages" +
+                     "?protocolType=UPack&includeAllVersions=false&`$top=200&api-version=7.1"
+
+          Write-Host "    Fetching feed packages..."
+          Write-Host "    GET $pkgsUrl"
+
+          $feedLookup = @{}
+          try {
+            $feedResp = Invoke-RestMethod -Uri $pkgsUrl -Headers $restHdrs -Method GET -ErrorAction Stop
+            foreach ($pkg in $feedResp.value) {
+              $ver = if ($pkg.versions) { $pkg.versions[0].version } else { "unknown" }
+              $feedLookup[$pkg.name.ToLower()] = $ver
+            }
+            Write-Host "    Feed packages found: $($feedLookup.Count)"
+          }
+          catch {
+            $msg = "Could not reach feed: $($_.Exception.Message)"
+            Write-Host "##vso[task.logissue type=error]$msg"
+            Write-AuditFailureReport -ReportPath $reportPath -Feed $feed -ErrorMessage $msg
+            exit 1
+          }
+
+          function Get-MarketplaceVersion([string]$ExtensionId) {
+            $body = @{
+              filters = @(@{ criteria = @(@{ filterType = 7; value = $ExtensionId }) })
+              flags = 512
+            } | ConvertTo-Json -Depth 6 -Compress
+
+            try {
+              $r = Invoke-RestMethod `
+                -Uri "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" `
+                -Method POST `
+                -Body $body `
+                -ContentType "application/json" `
+                -Headers @{ Accept = "application/json;api-version=3.0-preview.1" } `
+                -TimeoutSec 20
+
+              $v = $r.results[0].extensions[0].versions[0].version
+              if ([string]::IsNullOrWhiteSpace($v)) { return $null }
+              return $v
+            }
+            catch {
+              return $null
+            }
+          }
+
+          function Compare-Version([string]$a, [string]$b) {
+            $ap = $a.Split('.') | ForEach-Object { try { [int64]$_ } catch { 0 } }
+            $bp = $b.Split('.') | ForEach-Object { try { [int64]$_ } catch { 0 } }
+            $len = [Math]::Max($ap.Length, $bp.Length)
+            for ($i = 0; $i -lt $len; $i++) {
+              $av = if ($i -lt $ap.Length) { $ap[$i] } else { 0 }
+              $bv = if ($i -lt $bp.Length) { $bp[$i] } else { 0 }
+              if ($av -gt $bv) { return 1 }
+              if ($av -lt $bv) { return -1 }
+            }
+            return 0
+          }
+
+          function ConvertTo-TitleCase([string]$str) {
+            $words = $str.ToLower().Split(' ')
+            return ($words | ForEach-Object {
+              if ($_.Length -gt 0) { $_.Substring(0,1).ToUpper() + $_.Substring(1) } else { $_ }
+            }) -join ' '
+          }
+
+          $rows = [System.Collections.Generic.List[object]]::new()
+          $updateCount = 0
+          $missingCount = 0
+          $errorCount = 0
+
+          foreach ($ext in $extensions) {
+            $safeName = $ext.name.ToLower().Replace(".", "-")
+            $feedVer = $feedLookup[$safeName]
+            $marketVer = Get-MarketplaceVersion -ExtensionId $ext.name
+
+            $fv = if ($null -ne $feedVer -and $feedVer -ne "") { $feedVer } else { "-" }
+            $mv = if ($null -ne $marketVer -and $marketVer -ne "") { $marketVer } else { "?" }
+            Write-Host ("    {0,-50} feed={1,-20} market={2}" -f $ext.name, $fv, $mv)
+
+            $status = if (-not $feedVer) {
+              $missingCount++
+              "MISSING"
+            } elseif (-not $marketVer) {
+              $errorCount++
+              "MARKET_UNREACHABLE"
+            } elseif ((Compare-Version $marketVer $feedVer) -gt 0) {
+              $updateCount++
+              "UPDATE_AVAILABLE"
+            } else {
+              "UP_TO_DATE"
+            }
+
+            $rows.Add([PSCustomObject]@{
+              Name = $ext.name
+              SafeName = $safeName
+              FeedVersion = if ($null -ne $feedVer -and $feedVer -ne "") { $feedVer } else { "-" }
+              MarketVersion = if ($null -ne $marketVer -and $marketVer -ne "") { $marketVer } else { "-" }
+              Status = $status
+            })
+          }
+
+          if ($updateCount -gt 0) {
+            Write-Host "##vso[task.logissue type=warning]$updateCount extension(s) have newer versions in the marketplace. Re-run the Seed pipeline to update."
+          }
+          if ($missingCount -gt 0) {
+            Write-Host "##vso[task.logissue type=error]$missingCount extension(s) are in the approved list but not in the feed."
+          }
+
+          $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm"
+          $upToDate = $rows.Count - $updateCount - $missingCount - $errorCount
+
+          $md = [System.Text.StringBuilder]::new()
+          $null = $md.AppendLine("# VS Code Extension Feed - Audit Report")
+          $null = $md.AppendLine("")
+          $null = $md.AppendLine("| Field | Value |")
+          $null = $md.AppendLine("|---|---|")
+          $null = $md.AppendLine("| **Generated** | $timestamp UTC |")
+          $null = $md.AppendLine("| **Pipeline** | $(Build.BuildNumber) |")
+          $null = $md.AppendLine("| **Feed** | $feed |")
+          $null = $md.AppendLine("| **Extensions checked** | $($rows.Count) |")
+          $null = $md.AppendLine("| **Up to date** | $upToDate |")
+          $null = $md.AppendLine("| **Updates available** | $updateCount |")
+          $null = $md.AppendLine("| **Missing from feed** | $missingCount |")
+          $null = $md.AppendLine("| **Marketplace unreachable** | $errorCount |")
+          $null = $md.AppendLine("")
+
+          $updates = @($rows | Where-Object { $_.Status -eq "UPDATE_AVAILABLE" })
+          if ($updates.Count -gt 0) {
+            $null = $md.AppendLine("## Updates Available ($($updates.Count))")
+            $null = $md.AppendLine("")
+            $null = $md.AppendLine("Re-run the **Seed pipeline** to pull latest versions from the marketplace.")
+            $null = $md.AppendLine("")
+            $null = $md.AppendLine("| Extension | In Feed | Latest in Marketplace |")
+            $null = $md.AppendLine("|---|---|---|")
+            foreach ($r in $updates) {
+              $null = $md.AppendLine("| $($r.Name) | $($r.FeedVersion) | **$($r.MarketVersion)** |")
+            }
+            $null = $md.AppendLine("")
+          }
+
+          $missing = @($rows | Where-Object { $_.Status -eq "MISSING" })
+          if ($missing.Count -gt 0) {
+            $null = $md.AppendLine("## Missing from Feed ($($missing.Count))")
+            $null = $md.AppendLine("")
+            $null = $md.AppendLine("These extensions are in approved-extensions.json but were not found in the feed.")
+            $null = $md.AppendLine("")
+            $null = $md.AppendLine("| Extension | Latest in Marketplace |")
+            $null = $md.AppendLine("|---|---|")
+            foreach ($r in $missing) {
+              $null = $md.AppendLine("| $($r.Name) | $($r.MarketVersion) |")
+            }
+            $null = $md.AppendLine("")
+          }
+
+          $null = $md.AppendLine("## Full Status")
+          $null = $md.AppendLine("")
+          $null = $md.AppendLine("| Extension | Feed Version | Market Version | Status |")
+          $null = $md.AppendLine("|---|---|---|---|")
+          foreach ($r in $rows) {
+            $icon = switch ($r.Status) {
+              "UP_TO_DATE" { "OK" }
+              "UPDATE_AVAILABLE" { "UPDATE" }
+              "MISSING" { "MISSING" }
+              "MARKET_UNREACHABLE" { "WARN" }
+              default { "?" }
+            }
+            $label = ConvertTo-TitleCase -str $r.Status.Replace("_", " ")
+            $null = $md.AppendLine("| $($r.Name) | $($r.FeedVersion) | $($r.MarketVersion) | [$icon] $label |")
+          }
+
+          $null = $md.AppendLine("")
+          $null = $md.AppendLine("---")
+          $null = $md.AppendLine("_Audit pipeline: $(Build.BuildNumber)_")
+          $md.ToString() | Set-Content -Path $reportPath -Encoding UTF8
+
+          Write-Host "##vso[task.setvariable variable=UpdatesAvailable]$updateCount"
+          Write-Host "##vso[task.setvariable variable=MissingExtensions]$missingCount"
+          Write-Host "##vso[task.uploadsummary]$reportPath"
+          Write-Host ""
+          Write-Host "============================================"
+          Write-Host "  Audit complete"
+          Write-Host "  Up to date    : $upToDate"
+          Write-Host "  Updates avail : $updateCount"
+          Write-Host "  Missing       : $missingCount"
+          Write-Host "  Market errors : $errorCount"
+          Write-Host "============================================"
+
+          if ($missingCount -gt 0) { exit 1 }
+          exit 0
+        displayName: "Compare feed versions vs VS Marketplace"
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+      - pwsh: |
+          Set-StrictMode -Version Latest
+          $ErrorActionPreference = "Stop"
+
+          $updates = "$(UpdatesAvailable)"
+          if ([string]::IsNullOrWhiteSpace($updates)) {
+            Write-Host "UpdatesAvailable variable is empty. Seed pipeline will not be triggered."
+            exit 0
+          }
+
+          if ([int]$updates -le 0) {
+            Write-Host "No updates available. Seed pipeline trigger skipped."
+            exit 0
+          }
+
+          $pipelineId = "$(seedPipelineId)"
+          if ($pipelineId -eq "REPLACE_WITH_SEED_PIPELINE_ID" -or [string]::IsNullOrWhiteSpace($pipelineId)) {
+            Write-Host "##vso[task.logissue type=warning]Updates are available, but seedPipelineId is not configured. Set variable seedPipelineId to your Seed pipeline definitionId."
+            exit 0
+          }
+
+          $token = $env:SYSTEM_ACCESSTOKEN
+          if ([string]::IsNullOrWhiteSpace($token)) {
+            Write-Host "##vso[task.logissue type=warning]System.AccessToken is empty. Cannot trigger Seed pipeline."
+            exit 0
+          }
+
+          $org = "$(System.CollectionUri)".TrimEnd("/")
+          $project = "$(System.TeamProject)"
+          $encodedProject = [Uri]::EscapeDataString($project)
+          $branch = "$(Build.SourceBranch)"
+
+          $url = "$org/$encodedProject/_apis/pipelines/$pipelineId/runs?api-version=7.1-preview.1"
+
+          $headers = @{
+            Authorization = "Bearer $token"
+            "Content-Type" = "application/json"
+          }
+
+          $body = @{
+            resources = @{
+              repositories = @{
+                self = @{
+                  refName = $branch
+                }
+              }
+            }
+          } | ConvertTo-Json -Depth 10
+
+          Write-Host "Updates available: $updates"
+          Write-Host "Triggering Seed pipeline id: $pipelineId"
+          Write-Host "POST $url"
+
+          $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $body
+          Write-Host "Seed pipeline triggered successfully. Run id: $($response.id)"
+        displayName: "Trigger Seed pipeline when updates are available"
+        condition: and(succeeded(), ne(variables['UpdatesAvailable'], '0'))
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+      - publish: "$(Build.SourcesDirectory)/audit-report.md"
+        artifact: extension-audit-report
+        displayName: "Publish audit report artifact"
+        condition: always()
