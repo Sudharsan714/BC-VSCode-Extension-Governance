@@ -69,7 +69,7 @@ Audit pipeline runs  (Monday 08:00 UTC, cron: 0 8 * * 1)
 ## Repository Structure
 
 ```
-vscode-extension-control/
+VSCode-Extension-Governance/
 ├── pipelines/
 │   ├── seed-extensions.yml       # Bulk seed all 29 extensions into the feed
 │   └── audit-extensions.yml      # Weekly audit: feed vs Marketplace + auto-trigger
@@ -116,7 +116,7 @@ of your Seed pipeline (visible in its URL as `?definitionId=N`):
 ```yaml
 variables:
   feedName:       "approved-vscode-extensions"
-  seedPipelineId: "5"   # ← replace with your actual Seed pipeline ID
+  seedPipelineId: "REPLACE_WITH_YOUR_SEED_PIPELINE_ID"   # ← replace with your actual Seed pipeline ID
 ```
 
 ### 5. Run the Initial Seed

@@ -23,7 +23,7 @@ param(
 
     [string]$Feed = "approved-vscode-extensions",
 
-    [string]$ProjectId,
+    <# [string]$ProjectId, #>
 
     [switch]$AutoInstallAzureCli,
 
@@ -147,9 +147,9 @@ function Get-AdoProjectId {
         [Parameter(Mandatory)][hashtable]$Headers
     )
 
-    if (-not [string]::IsNullOrWhiteSpace($ProjectId)) {
+    <# if (-not [string]::IsNullOrWhiteSpace($ProjectId)) {
         return $ProjectId
-    }
+    } #>
 
     $encodedProjectForOrgApi = [Uri]::EscapeDataString($ProjectName)
     $projectUrl = "https://dev.azure.com/$OrgName/_apis/projects/$encodedProjectForOrgApi`?api-version=7.1"
