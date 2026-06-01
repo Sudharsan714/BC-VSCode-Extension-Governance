@@ -348,8 +348,40 @@ jobs:
           Write-Host "Triggering Seed pipeline id: $pipelineId"
           Write-Host "POST $url"
 
-          $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $body
-          Write-Host "Seed pipeline triggered successfully. Run id: $($response.id)"
+          try {
+            $response = Invoke-RestMethod -Uri $url -Method Post -Headers $headers -Body $body -ErrorAction Stop
+            Write-Host "Seed pipeline triggered successfully. Run id: $($response.id)"
+          }
+          catch {
+            $errorBody = $null
+            try {
+              $errorBody = $_.ErrorDetails.Message
+            }
+            catch {
+              $errorBody = $_.Exception.Message
+            }
+
+            if ($errorBody -match "TF215106" -or $_.Exception.Message -match "403|Access denied|Queue builds") {
+              Write-Host "##vso[task.logissue type=warning]Updates are available, but this audit pipeline does not have permission to queue the Seed pipeline."
+              Write-Host "##vso[task.logissue type=warning]Grant 'Queue builds' permission on Seed pipeline id $pipelineId to: $(System.TeamProject) Build Service ($(System.CollectionUri).TrimEnd('/').Split('/')[-1])"
+              Write-Host ""
+              Write-Host "Permission fix required:"
+              Write-Host "1. Open Azure DevOps > Pipelines > seed-extensions."
+              Write-Host "2. Open More actions (...) > Manage security."
+              Write-Host "3. Add or select: $(System.TeamProject) Build Service ($(System.CollectionUri).TrimEnd('/').Split('/')[-1])."
+              Write-Host "4. Set 'Queue builds' to Allow."
+              Write-Host "5. Save and rerun the Audit pipeline."
+              Write-Host ""
+              Write-Host "Seed trigger skipped due to permission issue. Audit itself completed successfully."
+              exit 0
+            }
+
+            Write-Host "##vso[task.logissue type=error]Failed to trigger Seed pipeline. $($_.Exception.Message)"
+            if (-not [string]::IsNullOrWhiteSpace($errorBody)) {
+              Write-Host $errorBody
+            }
+            exit 1
+          }
         displayName: "Trigger Seed pipeline when updates are available"
         condition: and(succeeded(), ne(variables['UpdatesAvailable'], '0'))
         env:
