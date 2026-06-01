@@ -22,7 +22,7 @@ storing approved VSIX files in Azure Artifacts gives you a layered defence:
 - ✅ Feed permissions enforce who can publish vs. download
 - ✅ Full audit trail: every publish is logged with extension, version, and timestamp
 - ✅ Weekly automated drift detection — the feed never silently falls behind
-- ✅ Works for `.vsix` files (the `extensions.allowed` policy does **NOT** block sideloading via `code --install-extension`)
+- ✅ `icacls` folder lock blocks raw `.vsix` sideloading that `extensions.allowed` cannot stop
 - ✅ No Azure subscription required — runs entirely on the **free** 5-user Azure DevOps plan
 
 ---
@@ -46,7 +46,8 @@ Azure Artifacts Feed: approved-vscode-extensions
        │  Install-ApprovedExtension.ps1
        ▼
 Developer Workstation  (VS Code)
-  code --install-extension <name>.vsix --force
+  — extensions installed from private feed only
+  — extensions folder write-locked via icacls after initial setup
 ```
 
 ### Automatic Update Loop
@@ -66,19 +67,37 @@ Audit pipeline runs  (Monday 08:00 UTC, cron: 0 8 * * 1)
 
 ---
 
+## Three-Layer Defence
+
+The system builds defence-in-depth. Each layer is independent; all three together close every known bypass.
+
+| Layer | Mechanism | What It Blocks |
+|---|---|---|
+| **Layer 1** | Azure Artifacts feed | Unapproved extensions entering the supply chain |
+| **Layer 2** | `icacls` folder lock | Raw `.vsix` sideloading via `code --install-extension` |
+| **Layer 3** *(optional)* | `extensions.allowed` policy | VS Code loading or running any extension not in the allow-list |
+
+> **Why Layer 2 is necessary:** `extensions.allowed` does **not** block
+> `code --install-extension file.vsix --force`. A developer can bypass the
+> policy entirely from a terminal. The folder lock closes this gap at the
+> Windows filesystem level — the install command fails at the OS before
+> VS Code gets involved.
+
+---
+
 ## Repository Structure
 
 ```
 VSCode-Extension-Governance/
 ├── pipelines/
-│   ├── seed-extensions.yml       # Bulk seed all 29 extensions into the feed
-│   └── audit-extensions.yml      # Weekly audit: feed vs Marketplace + auto-trigger
+│   ├── seed-extensions.yml            # Bulk seed all 29 extensions into the feed
+│   └── audit-extensions.yml           # Weekly audit: feed vs Marketplace + auto-trigger
 └── scripts/
-    ├── approved-extensions.json          # Single source of truth — approved list
-    ├── Publish-ApprovedExtensions.ps1    # Called by the Seed pipeline
-    ├── Install-ApprovedExtension.ps1     # Developer install script
-    ├── Lock-ExtensionFolder.ps1.ps1       # One-time icacls lock (Admin, once per machine)
-    └── UnLock-ExtensionFolder.ps1.ps1      # Rollback — removes the lock (Admin)
+    ├── approved-extensions.json       # Single source of truth — approved list
+    ├── Publish-ApprovedExtensions.ps1 # Called by the Seed pipeline
+    ├── Install-ApprovedExtension.ps1  # Developer install script (handles lock automatically)
+    ├── Lock-ExtensionFolder.ps1       # One-time icacls lock — run as Admin once per machine
+    └── UnLock-ExtensionFolder.ps1     # Rollback — removes the lock (Admin)
 ```
 
 ---
@@ -154,30 +173,6 @@ Expected output when all 29 extensions are seeded and up-to-date:
 
 ---
 
-## Day-to-Day Workflows
-
-### Seed all approved extensions (bulk update)
-
-Trigger the **Seed Extensions** pipeline manually to refresh all extensions
-to their latest Marketplace versions. Already-current versions are skipped
-automatically.
-
-```powershell
-# Or run locally (pipeline agent must have Azure CLI installed)
-.\scripts\Publish-ApprovedExtensions.ps1 `
-    -Organization "https://dev.azure.com/[your-org]" `
-    -Project      "[your-project]"
-```
-
-### Run an on-demand audit
-
-Trigger **Audit Extensions** manually at any time.
-The audit will detect any version drift and auto-trigger the Seed pipeline
-if updates are found. A full markdown report is published as a pipeline
-artifact (`extension-audit-report/audit-report.md`).
-
----
-
 ## Developer Install (run on each machine)
 
 ### Install all 29 approved extensions (recommended for new machines)
@@ -215,7 +210,7 @@ Done.
 ### Install a single extension
 
 > **Important:** Use the **feed package name** (lowercase, dots → dashes),
-> not the original Marketplace ID.  
+> not the original Marketplace ID.
 > Example: `github-copilot` not `GitHub.copilot`.
 
 ```powershell
@@ -240,32 +235,28 @@ Done.
 
 ## Folder Lock — Layer 2 Defence
 
-The `extensions.allowed` VS Code policy does **not** block `code --install-extension file.vsix` sideloading.
-The folder lock closes this gap by restricting write access to the extensions folder at the filesystem level using `icacls`.
+The `extensions.allowed` policy does **not** block `code --install-extension file.vsix` sideloading.
+The folder lock closes this gap using `icacls` to remove write access to the extensions folder at
+the Windows filesystem level. Even the `code` CLI cannot write to the folder once locked.
 
-### Two-Layer Defence
-
-| Layer | Mechanism | What it blocks |
-|---|---|---|
-| **Layer 1** | Azure Artifacts feed | Only approved `.vsix` files are available to download |
-| **Layer 2** | `icacls` folder lock | Raw `.vsix` sideloading blocked at the filesystem level |
-
-### How it works
+### How the scripts work together
 
 ```
-Lock-ExtensionFolder.ps1.ps1   →  CREATES the lock (one time, per machine, Admin)
+Lock-ExtensionFolder.ps1      →  CREATES the lock (once per machine, Administrator)
 Install-ApprovedExtension.ps1 →  HANDLES the lock (every update run, automatic)
-UnLock-ExtensionFolder.ps1.ps1  →  REMOVES the lock (rollback, Admin)
+UnLock-ExtensionFolder.ps1    →  REMOVES the lock (rollback, Administrator)
 ```
 
-`Install-ApprovedExtension.ps1` detects the lock automatically, temporarily unlocks, installs/updates all extensions, then re-locks — no manual steps needed on any future run.
+`Install-ApprovedExtension.ps1` auto-detects the lock state on every run — if locked, it
+temporarily grants write access, installs or updates all extensions, then re-locks.
+No manual steps needed after initial setup.
 
 ### Applying the lock (one time per machine)
 
 Run as **Administrator** after `Install-ApprovedExtension.ps1` has completed the initial install:
 
 ```powershell
-.\scripts\Lock-ExtensionFolder.ps1.ps1
+.\scripts\Lock-ExtensionFolder.ps1
 ```
 
 Expected output:
@@ -275,15 +266,25 @@ Expected output:
   VS Code Extension Folder Lock
 ============================================
   Target : C:\Users\[username]\.vscode\extensions
+  User   : [username]
+
   [OK] Inherited permissions removed
   [OK] SYSTEM: Full control granted
   [OK] [username]: Read + Execute only (write blocked)
+
 ============================================
   Lock applied successfully
 ============================================
+
+  Raw .vsix sideloading is now blocked.
+  Install-ApprovedExtension.ps1 handles unlock/relock
+  automatically on all future update runs.
 ```
 
-### Verifying the lock is working
+> **Note:** The script auto-detects the extensions folder location and exits
+> cleanly with no changes if the folder is already locked.
+
+### Verifying the lock
 
 **Check 1** — confirm permissions are correct:
 
@@ -291,7 +292,7 @@ Expected output:
 icacls "$env:USERPROFILE\.vscode\extensions"
 ```
 
-Expected: `SUDHARSAN\[username]:(OI)(CI)(RX)` and `NT AUTHORITY\SYSTEM:(OI)(CI)(F)`. No `(I)` inherited entries.
+Expected: `[username]:(OI)(CI)(RX)` and `NT AUTHORITY\SYSTEM:(OI)(CI)(F)`. No `(I)` inherited entries.
 
 **Check 2** — confirm sideloading is blocked:
 
@@ -308,17 +309,16 @@ catch {
 
 Expected: `[OK] Write blocked — folder is correctly locked`
 
-**Check 3** — confirm `Install-ApprovedExtension.ps1` still works through the lock. Run the install script normally and verify the output shows:
+**Check 3** — confirm `Install-ApprovedExtension.ps1` still works through the lock.
+Run the install script normally and verify the output shows the unlock/relock messages:
 
 ```
 ==> Extensions folder is write-locked (icacls)
     Temporarily unlocking for approved install...
     [OK] Temporarily unlocked
-```
 
-and at the end:
+...
 
-```
 ==> Re-locking extensions folder...
     [OK] Extensions folder re-locked
 ```
@@ -326,10 +326,12 @@ and at the end:
 ### Rollback (removing the lock)
 
 ```powershell
-.\scripts\UnLock-ExtensionFolder.ps1.ps1
+.\scripts\UnLock-ExtensionFolder.ps1
 ```
 
-Reverses all three `icacls` steps. Run as **Administrator**.
+Reverses all three `icacls` steps. `UnLock-ExtensionFolder.ps1` auto-detects if it is not
+running as Administrator and relaunches itself with a UAC elevation prompt — no need to
+manually right-click Run as Administrator.
 
 ---
 
@@ -432,6 +434,12 @@ git push origin main
 | `-ApprovedListPath` | Path to `approved-extensions.json` (default: same folder as script) |
 | `-SkipAutoResolve` | Skip Marketplace version lookup — only use if Marketplace is unreachable |
 
+### `Lock-ExtensionFolder.ps1` / `UnLock-ExtensionFolder.ps1`
+
+Neither script accepts parameters. Both auto-detect the VS Code extensions folder.
+`UnLock-ExtensionFolder.ps1` auto-relaunches with a UAC elevation prompt if run without
+Administrator rights.
+
 ---
 
 ## Troubleshooting
@@ -446,7 +454,9 @@ git push origin main
 | `Resource not found (404)` | Extension version removed from Marketplace. Fix: re-run Seed — it auto-fetches latest. |
 | `Incompatible: built-in extension` | VS Code has a newer built-in version. Script logs `[WARN] Skipping` — no action needed. |
 | Script blocked: `not digitally signed` | PowerShell execution policy. Fix: `Unblock-File -Path ".\Install-ApprovedExtension.ps1"` |
-| `VS Code extensions folder could not be located` | Lock script could not find extensions folder. Fix: ensure VS Code is installed and at least one extension exists. The script checks `%USERPROFILE%\.vscode\extensions` first. |
+| `Could not unlock extensions folder. Try running as Administrator.` | Folder is locked but script was not elevated. Fix: run PowerShell as Administrator and rerun. |
+| `VS Code extensions folder could not be located` | Lock or install script cannot find the extensions folder. Fix: ensure VS Code is installed and at least one extension exists. The scripts check `%USERPROFILE%\.vscode\extensions` first. |
+| `Permissions updated, but write test failed` | VS Code has files open in the extensions folder. Fix: close VS Code completely and run `UnLock-ExtensionFolder.ps1` again. |
 
 ### Re-seeding a clean feed
 
@@ -458,8 +468,6 @@ git push origin main
 2. Create a new feed with the **exact same name**
 3. Add Build Service as Contributor
 4. Run the Seed pipeline
-
----
 
 ## Pair with `extensions.allowed` (Recommended)
 
@@ -477,14 +485,6 @@ policy (VS Code ≥ 1.96). Deploy via Group Policy, Intune, or `settings.json`:
 }
 ```
 
-This creates a **three-layer defence**:
-
-| Layer | Controls |
-|---|---|
-| **Azure Artifacts feed** | *What* extensions are available to download |
-| `extensions.allowed` policy | *What* VS Code will load and run |
-| `icacls` folder lock (`Lock-ExtensionFolder.ps1.ps1`) | Blocks raw `.vsix` sideloading at the filesystem level |
-
 ---
 
 ## Rotating a Compromised Extension
@@ -497,5 +497,5 @@ This creates a **three-layer defence**:
 
 ---
 
-*VS Code Extension Controller — Portfolio Project by [**Sudharsan M**](https://linkedin.com/in/sudharsan-m)*  
-*Feed: `approved-vscode-extensions` &nbsp;|&nbsp; 29 approved extensions &nbsp;|&nbsp; Version 1.1*
+*VS Code Extension Controller — Portfolio Project by [**Sudharsan M**](https://linkedin.com/in/sudharsan-m)*
+*Feed: `approved-vscode-extensions` &nbsp;|&nbsp; 29 approved extensions &nbsp;|&nbsp; Version  1.1*
