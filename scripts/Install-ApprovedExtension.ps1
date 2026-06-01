@@ -541,6 +541,89 @@ function Install-OneApprovedExtension {
 }
 
 # ---------------------------------------------------------------------------
+# FOLDER-LOCK AWARENESS
+# Detects whether the VS Code extensions folder is write-locked (icacls).
+# If locked  -- temporarily unlocks before install, re-locks after.
+# If unlocked -- proceeds normally; does NOT apply a new lock automatically.
+# The initial lock is applied once per machine via Set-ExtensionFolderLock.ps1.
+# ---------------------------------------------------------------------------
+
+# AUTO-DETECT VS Code extensions folder
+# Priority order:
+#   1. User profile folder  -- %USERPROFILE%\.vscode\extensions  (most common)
+#   2. User install folder  -- %LOCALAPPDATA%\Programs\Microsoft VS Code\extensions
+#   3. System install       -- C:\Program Files\Microsoft VS Code\extensions
+#   4. Fallback via PATH    -- resolve from code.cmd location
+function Get-VSCodeExtensionsPath {
+    $candidates = @(
+        "$env:USERPROFILE\.vscode\extensions",
+        "$env:LOCALAPPDATA\Programs\Microsoft VS Code\extensions",
+        "$env:ProgramFiles\Microsoft VS Code\extensions",
+        "${env:ProgramFiles(x86)}\Microsoft VS Code\extensions"
+    )
+    foreach ($path in $candidates) {
+        if (Test-Path $path) { return $path }
+    }
+    $codeCmd = Get-Command code -ErrorAction SilentlyContinue
+    if ($codeCmd) {
+        $installRoot = Split-Path (Split-Path $codeCmd.Source -Parent) -Parent
+        $derived = Join-Path $installRoot "extensions"
+        if (Test-Path $derived) { return $derived }
+    }
+    return $null
+}
+
+$detectedPath              = Get-VSCodeExtensionsPath
+$script:extensionsPath     = if ($detectedPath) { $detectedPath } else { "$env:USERPROFILE\.vscode\extensions" }
+$script:wasLocked          = $false
+
+function Test-FolderWriteLocked {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        return $false
+    }
+
+    $testFile = Join-Path $Path ".write-test-$(New-Guid)"
+    try {
+        [System.IO.File]::WriteAllText($testFile, "test")
+        Remove-Item $testFile -Force -ErrorAction SilentlyContinue
+        return $false   # write succeeded -- NOT locked
+    }
+    catch {
+        return $true    # write failed -- IS locked
+    }
+}
+
+function Unlock-ExtensionsFolder {
+    Write-Host "`n==> Extensions folder is write-locked (icacls)" -ForegroundColor Cyan
+    Write-Host "    Temporarily unlocking for approved install..." -ForegroundColor Gray
+    icacls $script:extensionsPath /grant:r "${env:USERNAME}:(OI)(CI)(F)" | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "    [FAIL] Could not unlock extensions folder. Try running as Administrator." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "    [OK] Temporarily unlocked" -ForegroundColor Green
+}
+
+function Lock-ExtensionsFolder {
+    Write-Host "`n==> Re-locking extensions folder..." -ForegroundColor Cyan
+    icacls $script:extensionsPath /inheritance:r                          | Out-Null
+    icacls $script:extensionsPath /grant:r "SYSTEM:(OI)(CI)(F)"          | Out-Null
+    icacls $script:extensionsPath /grant:r "${env:USERNAME}:(OI)(CI)(RX)" | Out-Null
+    Write-Host "    [OK] Extensions folder re-locked" -ForegroundColor Green
+}
+
+# Check lock state before anything else runs
+if (Test-FolderWriteLocked -Path $script:extensionsPath) {
+    Unlock-ExtensionsFolder
+    $script:wasLocked = $true
+}
+else {
+    Write-Host "`n==> Extensions folder is writable -- no unlock needed" -ForegroundColor Cyan
+}
+
+# ---------------------------------------------------------------------------
 # PRE-FLIGHT
 # ---------------------------------------------------------------------------
 Write-Step "Pre-flight checks"
@@ -787,3 +870,10 @@ if ($failed.Count -gt 0) {
 
 Write-Host ""
 Write-Host "Done." -ForegroundColor Cyan
+
+# ---------------------------------------------------------------------------
+# RE-LOCK (only if this script unlocked the folder -- preserves original state)
+# ---------------------------------------------------------------------------
+if ($script:wasLocked) {
+    Lock-ExtensionsFolder
+}
